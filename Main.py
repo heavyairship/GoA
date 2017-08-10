@@ -5,11 +5,11 @@ import pickle
 from Types import *
 from Util import *
 
-levelMap = None
+gameState = None
 def save():
-   if levelMap is None:
+   if gameState is None:
       return
-   levelMap.save()
+   gameState.save()
 atexit.register(save)
 
 def displayMainMenu():
@@ -27,12 +27,13 @@ def displayMainMenu():
          break
       else:
          print "Invalid answer"
-   global levelMap
+   global gameState
    if ans == "c":
       with open("Save.obj","rb") as saveFile:
-         levelMap = pickle.load(saveFile)
+         gameState = pickle.load(saveFile)
    elif ans == "n":
-      levelMap = LevelMap()
+      playerName = raw_input("Welcome! What is your name? ")
+      gameState = GameState(playerName)
    else:
       sys.exit(0)
    displayMapMenu()
@@ -62,7 +63,7 @@ def displayLevelMenu(level):
          level.legs[ans].begin()
       
 def displayMapMenu():
-   global levelMap
+   levelMap = gameState.levelMap
    while True:
       clearScreen()
       printTitle("Map Menu")

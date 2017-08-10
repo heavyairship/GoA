@@ -15,6 +15,12 @@ class Leg(object):
       self.level = level
       self.status = UNLOCKED if level.levelId == 0 and legId == 0 else LOCKED
 
+   def levelMap(self):
+      return self.level.levelMap
+   
+   def player(self):
+      return self.level.levelMap.gameState.player
+
    def prettyPrint(self):
       if self.status == LOCKED:
          prefix = RED
@@ -32,10 +38,10 @@ class Leg(object):
          if nextLeg.status == LOCKED:
             raw_input("%s unlocked! (Any key to continue) " % nextLeg.name)
             nextLeg.status = UNLOCKED
-      elif self.level.levelId+1 in self.level.levelMap.levels:
+      elif self.level.levelId+1 in self.levelMap().levels:
          raw_input("%s complete! (Any key to continue) " % self.level.name)
          self.level.status = COMPLETE 
-         nextLevel = self.level.levelMap.levels[self.level.levelId+1]
+         nextLevel = self.levelMap().levels[self.level.levelId+1]
          if nextLevel.status == LOCKED:
             raw_input("%s unlocked! (Any key to continue) " % nextLevel.name)
             nextLevel.status = UNLOCKED
@@ -93,14 +99,30 @@ class Level(object):
       else:
          prefix = GREEN
       print prefix + "%d - %s (%s)" % (self.levelId, self.name, self.status) + ENDC
+
+   def player(self):
+      return self.levelMap.gameState.player
    
 class LevelMap(object):
-   def __init__(self):
+   def __init__(self,gameState):
       global mapTemplate
+      self.gameState = gameState
       self.levels = {}
       for i,levelName in enumerate(mapTemplate.keys()):
          self.levels[i] = Level(i,levelName,self)
-      self.save()
+
+   def player(self):
+      return self.gameState.player
+
+class Player(object):
+   def __init__(self,name,gameState):
+      self.name = name
+      self.gameState = gameState
+
+class GameState(object):
+   def __init__(self,playerName):
+      self.player = Player(self,playerName)
+      self.levelMap = LevelMap(self)
 
    def save(self):
       with open("Save.obj","wb") as saveFile:
