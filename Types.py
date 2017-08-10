@@ -118,10 +118,25 @@ class Player(object):
    def __init__(self,name,gameState):
       self.name = name
       self.gameState = gameState
+      self.helm = None
+      self.chest = None
+      self.gloves = None
+      self.legs = None
+      self.boots = None
+      self.walkingStick = None
+
+   def prettyPrint(self):
+      printTitle(self.name)
+      print "Helm: "+str(self.helm)
+      print "Chest: "+str(self.chest)
+      print "Gloves: "+str(self.gloves)
+      print "Legs: "+str(self.legs)
+      print "Boots: "+str(self.boots)
+      print "Walking Stick: "+str(self.walkingStick)
 
 class GameState(object):
    def __init__(self,playerName):
-      self.player = Player(self,playerName)
+      self.player = Player(playerName,self)
       self.levelMap = LevelMap(self)
 
    def save(self):

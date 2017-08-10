@@ -37,6 +37,12 @@ def displayMainMenu():
    else:
       sys.exit(0)
    displayMapMenu()
+
+def displayCharacterMenu():
+   clearScreen()
+   global gameState
+   gameState.player.prettyPrint()
+   ans = raw_input("(Any key to continue) ") 
          
 def displayLevelMenu(level):
    while True:
@@ -45,10 +51,14 @@ def displayLevelMenu(level):
       for leg in level.legs.itervalues():
          leg.prettyPrint()
       try:
-         ans = raw_input("Select Leg or Map Menu (m) Quit (q): ")
+         ans = raw_input("Select Leg (0-%d) Map Menu (m) Character (c) Quit (q): " 
+            % (len(level.legs)-1))
          if ans == "m":
             displayMapMenu()
             break
+         if ans == "c":
+            displayCharacterMenu()
+            continue
          if ans == "q":
             sys.exit(0) 
          ans = int(ans)
@@ -70,10 +80,14 @@ def displayMapMenu():
       for level in levelMap.levels.itervalues():
          level.prettyPrint()
       try:
-         ans = raw_input("Select Level or Main Menu (m) Quit (q): ")
+         ans = raw_input("Select Level (0-%d) Main Menu (m) Character (c) Quit (q): " 
+            % (len(levelMap.levels)-1))
          if ans == "m":
             displayMainMenu()
             break
+         if ans == "c":
+            displayCharacterMenu()
+            continue
          if ans == "q":
             sys.exit(0) 
          ans = int(ans)
