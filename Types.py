@@ -1,89 +1,128 @@
 import pickle
+import datetime
 import collections
 import time
 import sys
+import threading
 from Util import *
 
 mapTemplate = collections.OrderedDict()
 mapTemplate["Greece"] = ["Sparta","Athens","Medusa"]
 mapTemplate["China"] = ["Bejing","Shanghai","The Red Dragon"]
+threadMap = {}
+globalLock = threading.Lock()
 
 class Leg(object):
-   def __init__(self,legId,name,level):
+   def __init__(self,legId,name,region):
       self.legId = legId
       self.name = name
-      self.level = level
-      self.status = UNLOCKED if level.levelId == 0 and legId == 0 else LOCKED
+      self.region = region
+      self.status = UNLOCKED if region.regionId == 0 and legId == 0 else LOCKED
+      self.progress = 0
+      self.length = 2
+      self.thread = None
 
-   def levelMap(self):
-      return self.level.levelMap
+   def globe(self):
+      return self.region.globe
    
    def player(self):
-      return self.level.levelMap.gameState.player
+      return self.region.globe.gameState.player
+
+   def gameState(self):
+      return self.region.globe.gameState
 
    def prettyPrint(self):
+      globalLock.acquire()
       if self.status == LOCKED:
          prefix = RED
       elif self.status == UNLOCKED:
+         prefix = BLUE
+      elif self.status == IN_PROGRESS:
          prefix = YELLOW
       else:
          prefix = GREEN
       print prefix + "%d - %s (%s)" % (self.legId, self.name, self.status) + ENDC
+      globalLock.release()
 
    def changeStatus(self):
-      raw_input("%s complete! (Any key to continue) " % self.name)
+      globalLock.acquire()
+      self.gameState().statusLog.add("%s complete!" % self.name)
       self.status = COMPLETE
-      if self.legId+1 in self.level.legs:
-         nextLeg = self.level.legs[self.legId+1]
+      if self.legId+1 in self.region.legs:
+         nextLeg = self.region.legs[self.legId+1]
          if nextLeg.status == LOCKED:
-            raw_input("%s unlocked! (Any key to continue) " % nextLeg.name)
+            self.gameState().statusLog.add("%s unlocked!" % nextLeg.name)
             nextLeg.status = UNLOCKED
-      elif self.level.levelId+1 in self.levelMap().levels:
-         raw_input("%s complete! (Any key to continue) " % self.level.name)
-         self.level.status = COMPLETE 
-         nextLevel = self.levelMap().levels[self.level.levelId+1]
-         if nextLevel.status == LOCKED:
-            raw_input("%s unlocked! (Any key to continue) " % nextLevel.name)
-            nextLevel.status = UNLOCKED
-         nextLeg = nextLevel.legs[0]
+      elif self.region.regionId+1 in self.globe().regions:
+         self.gameState().statusLog.add("%s complete!" % self.region.name)
+         self.region.status = COMPLETE 
+         nextRegion = self.globe().regions[self.region.regionId+1]
+         if nextRegion.status == LOCKED:
+            self.gameState().statusLog.add("%s unlocked!" % nextRegion.name)
+            nextRegion.status = UNLOCKED
+         nextLeg = nextRegion.legs[0]
          if nextLeg.status == LOCKED:
-            raw_input("%s unlocked! (Any key to continue) " % nextLeg.name)
+            self.gameState().statusLog.add("%s unlocked!" % nextLeg.name)
             nextLeg.status = UNLOCKED
       else:
-         print GREEN + "Game complete! Congrats!" + ENDC
-         sys.exit(0)
+         self.gameState().statusLog.add("%s complete!" % self.region.name)
+         self.region.status = COMPLETE 
+         if self.gameState().status != COMPLETE:
+            self.gameState().statusLog.add(GREEN + "Game complete! Congrats!" + ENDC)
+            self.gameState().status = COMPLETE
+      globalLock.release()
 
-   def begin(self):
-      clearScreen()
-      printTitle("%s, %s" % (self.name, self.level.name))
-      print "Starting trek!"
-      for i in range(2):
-         time.sleep(1) 
-         sys.stdout.write("...")
-         sys.stdout.flush()
-      sys.stdout.write("\n")
-      sys.stdout.flush()
+   def run(self):
+      while self.progress < self.length:
+         time.sleep(1)
+         self.progress += 1
+      self.progress = 0
       self.changeStatus()
+
+   def resume(self):
+      globalLock.acquire()
+      global threadMap
+      if self.status == IN_PROGRESS and self.name not in threadMap:
+         threadMap[self.name] = threading.Thread(target=self.run)
+         threadMap[self.name].daemon = True
+         threadMap[self.name].start()
+      globalLock.release()
+         
+   def begin(self):
+      globalLock.acquire()
+      global threadMap
+      clearScreen()
+      if self.name in threadMap and threadMap[self.name].isAlive():
+         raw_input("Trek in progress (Any key to continue) ")
+      else:
+         self.status = IN_PROGRESS
+         raw_input("Started trek! (Any key to continue) ")
+         threadMap[self.name] = threading.Thread(target=self.run)
+         threadMap[self.name].daemon = True
+         threadMap[self.name].start()
+      globalLock.release()
 
 class Boss(Leg):
    def begin(self):
+      globalLock.acquire()
+      global threadMap
       clearScreen()
-      printTitle("%s, %s" % (self.name, self.level.name))
-      print RED + "Fighting boss!" + ENDC
-      for i in range(2):
-         time.sleep(1) 
-         sys.stdout.write("...")
-         sys.stdout.flush()
-      sys.stdout.write("\n")
-      sys.stdout.flush()
-      self.changeStatus()
+      if self.name in threadMap and threadMap[self.name].isAlive():
+         raw_input(RED + "Boss fight in progress (Any key to continue) " + ENDC)
+      else:
+         self.status = IN_PROGRESS
+         raw_input(RED + "Started boss fight! (Any key to continue) " + ENDC)
+         threadMap[self.name] = threading.Thread(target=self.run)
+         threadMap[self.name].daemon = True
+         threadMap[self.name].start()
+      globalLock.release()
 
-class Level(object):
-   def __init__(self,levelId,name,levelMap):
-      self.levelId = levelId
+class Region(object):
+   def __init__(self,regionId,name,globe):
+      self.regionId = regionId
       self.name = name
-      self.levelMap = levelMap
-      self.status = UNLOCKED if levelId == 0 else LOCKED
+      self.globe = globe
+      self.status = UNLOCKED if regionId == 0 else LOCKED
       self.legs = {}
       for i,legName in enumerate(mapTemplate[name]):
          if i == len(mapTemplate[name]) - 1:
@@ -92,24 +131,26 @@ class Level(object):
             self.legs[i] = Leg(i,legName,self)
 
    def prettyPrint(self):
+      globalLock.acquire()
       if self.status == LOCKED:
          prefix = RED
       elif self.status == UNLOCKED:
          prefix = YELLOW
       else:
          prefix = GREEN
-      print prefix + "%d - %s (%s)" % (self.levelId, self.name, self.status) + ENDC
+      print prefix + "%d - %s (%s)" % (self.regionId, self.name, self.status) + ENDC
+      globalLock.release()
 
    def player(self):
-      return self.levelMap.gameState.player
+      return self.globe.gameState.player
    
-class LevelMap(object):
+class Globe(object):
    def __init__(self,gameState):
       global mapTemplate
       self.gameState = gameState
-      self.levels = {}
-      for i,levelName in enumerate(mapTemplate.keys()):
-         self.levels[i] = Level(i,levelName,self)
+      self.regions = {}
+      for i,regionName in enumerate(mapTemplate.keys()):
+         self.regions[i] = Region(i,regionName,self)
 
    def player(self):
       return self.gameState.player
@@ -134,11 +175,31 @@ class Player(object):
       print "Boots: "+str(self.boots)
       print "Walking Stick: "+str(self.walkingStick)
 
+class StatusLog(object):
+   def __init__(self,gameState):
+      self.gameState = gameState
+      self.data = []
+
+   def add(self,status):
+      self.data.append(status)
+
+   def prettyPrint(self):
+      printTitle("Status Log")
+      if not len(self.data):
+         print "<No log entries>"
+      for d in self.data:
+         print d
+
 class GameState(object):
    def __init__(self,playerName):
       self.player = Player(playerName,self)
-      self.levelMap = LevelMap(self)
+      self.globe = Globe(self)
+      self.statusLog = StatusLog(self)
+      self.save()
+      self.status = IN_PROGRESS
+      self.menu = MAIN
+      self.prevMenu = None
 
    def save(self):
-      with open("Save.obj","wb") as saveFile:
+      with open(SAVEPATH,"wb") as saveFile:
          pickle.dump(self,saveFile)
